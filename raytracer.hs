@@ -19,7 +19,7 @@ a |* (Vec3 vx vy vz) = Vec3 (a*vx) (a*vy) (a*vz)
 v *| a = a |* v
 
 vLength :: Vec3 -> Double
-vLength (Vec3 vx vy vz) = sqrt (vx**2 + vy**2 + vz**2)
+vLength (Vec3 vx vy vz) = sqrt (vx*vx + vy*vy + vz*vz)
 
 normalized :: Vec3 -> Vec3
 normalized v = v *| (1/(vLength v))
@@ -31,24 +31,37 @@ type Direction = Vec3
 data Ray = Ray Position Direction
 data Mesh = Sphere {radius :: Double, position :: Position}
 
-meshList = [Sphere {radius=1, position=(Vec3 0 0 (-5))}]
+meshList = [Sphere {radius=1, position=(Vec3 0 0.4 (-5))}]
 
-intersect :: Ray -> Mesh -> Maybe Vec3
+intersect :: Ray -> Mesh -> Maybe (Position, Direction)
 intersect (Ray rayOrig rayDir) (Sphere {radius=r, position=pos}) =
     if toTang <= r
-        then Just (Vec3 0 0 0)
+        then Just (intersectionPoint, normal)
         else Nothing
     where 
         toTang = vLength (tang |-| pos)
         tang = rayOrig |+| (rayDir *| (toSphere *** rayDir))
         toSphere = pos |-| rayOrig
+        intersectionPoint = tang |+| offset
+        offset = rayDir *| (-offsetLen)
+        offsetLen = sqrt (1 - toTang*toTang)
+        normal = normalized $ intersectionPoint |-| pos
 
 -- Color and image stuff
 data Color = Color Int Int Int deriving (Show)
 data Shape = Shape {width :: Int, height :: Int} deriving (Show)
 data Image = Image {shape :: Shape, raw :: [Color]} deriving (Show)
 
+-- Light stuff
+bgColor = Color 255 255 255
+lightDir = normalized $ Vec3 1 (-3) (-1)
+
 -- Render stuff
+shade :: (Position, Direction) -> Color
+shade (pos, dir) =
+    Color intensity intensity intensity
+    where intensity = floor $ 255 * (max 0.1 (-(dir *** lightDir)))
+
 renderRay :: Ray -> Color
 renderRay ray =
     let foldedIntersections = foldl propJust Nothing intersections
@@ -58,8 +71,8 @@ renderRay ray =
         intersections = map (intersect ray) meshList
     in
         case foldedIntersections of
-            Just _ -> Color 0 0 0 
-            Nothing -> Color 255 255 255
+            Just a -> shade a
+            Nothing -> bgColor
 
 renderPixel :: Shape -> (Int, Int) -> Color
 renderPixel dimensions (x, y) = 
@@ -84,9 +97,8 @@ renderScreen dimensions =
     Image {shape=dimensions,raw=rawImageTo (w*h)}
     where 
         Shape {width=w, height=h} = dimensions
-        rawImageTo n = reverse $ rawImageToReverse n
-        rawImageToReverse 0 = []
-        rawImageToReverse n = (renderPixel dimensions (n `mod` h, n `div` h)):(rawImageToReverse (n-1))
+        rawImageTo 0 = []
+        rawImageTo n = (renderPixel dimensions (n `mod` h, n `div` h)):(rawImageTo (n-1))
 
 -- Write an image into a PPM ascii file
 writePPM :: Image -> IO ()
