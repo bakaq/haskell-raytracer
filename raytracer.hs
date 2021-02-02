@@ -48,16 +48,6 @@ data Color = Color Int Int Int deriving (Show)
 data Shape = Shape {width :: Int, height :: Int} deriving (Show)
 data Image = Image {shape :: Shape, raw :: [Color]} deriving (Show)
 
--- Turns an image into a PPM ascii file
-toPPM :: Image -> String
-toPPM img = header ++ toData img
-    where header = "P3\n" ++ (show $ width $ shape img) ++
-                    " " ++ (show $ height $ shape img) ++ "\n255\n"
-          toData Image {raw=rawData} =
-              foldl (\a b -> a  ++ b ++ "\n") "" (map flatColor rawData)
-              where flatColor (Color r g b) =
-                        (show r) ++ " " ++ (show g) ++ " " ++ (show b)
-
 -- Render stuff
 renderRay :: Ray -> Color
 renderRay ray =
@@ -89,14 +79,24 @@ renderPixel dimensions (x, y) =
                                        dy :: Double
                                        dy = fromIntegral y
 
-
 renderScreen :: Shape -> Image
 renderScreen dimensions =
     Image {shape=dimensions,raw=rawImageTo (w*h)}
     where 
         Shape {width=w, height=h} = dimensions
-        rawImageTo 0 = []
-        rawImageTo n = rawImageTo (n-1) ++ [renderPixel dimensions (n `mod` h, n `div` h)]
+        rawImageTo n = reverse $ rawImageToReverse n
+        rawImageToReverse 0 = []
+        rawImageToReverse n = (renderPixel dimensions (n `mod` h, n `div` h)):(rawImageToReverse (n-1))
 
-main = do
-    writeFile "image.ppm" $ toPPM $ renderScreen $ Shape {width=64, height=64}
+-- Write an image into a PPM ascii file
+writePPM :: Image -> IO ()
+writePPM img = withFile "image.ppm" WriteMode $ \handle -> do
+    let header = "P3\n" ++ (show $ width $ shape img) ++
+                    " " ++ (show $ height $ shape img) ++ "\n255"
+    hPutStrLn handle header
+    let flatColor (Color r g b) =
+            (show r) ++ " " ++ (show g) ++ " " ++ (show b)
+        Image {raw=rawData} = img
+    mapM_ (hPutStrLn handle) (map flatColor rawData)
+
+main = writePPM $ renderScreen $ Shape {width=256, height=256}
