@@ -51,6 +51,10 @@ intersect (Ray rayOrig rayDir) (Sphere {radius=r, position=pos}) =
 data Color = Color Int Int Int deriving (Show)
 data Shape = Shape {width :: Int, height :: Int} deriving (Show)
 data Image = Image {shape :: Shape, raw :: [Color]} deriving (Show)
+type Intensity = Float
+
+toGray :: Color -> Intensity
+toGray (Color r g b) = (fromIntegral (r + g + b))/(3.0*255.0)
 
 -- Light stuff
 bgColor = Color 255 255 255
@@ -111,4 +115,24 @@ writePPM img = withFile "image.ppm" WriteMode $ \handle -> do
         Image {raw=rawData} = img
     mapM_ (hPutStrLn handle) (map flatColor rawData)
 
-main = writePPM $ renderScreen $ Shape {width=256, height=256}
+showTerminal :: Image -> IO ()
+showTerminal Image {shape=sh, raw=rawData} = do
+    let intensities = (map toGray rawData)
+        intensitiesReduced row 0 = []
+        intensitiesReduced row w = avg:(intensitiesReduced row (w-1)) where
+            avg = (firstRow + secondRow)/2
+            firstRow = intensities !! (2*(row-1)*(width sh) + (width sh) - w)
+            secondRow = intensities !! ((2*(row-1)+1)*(width sh) + (width sh) - w)
+        toCharacter i = let chars = " .,-~:;=!*#$@" in
+            chars !! (floor (i*(fromIntegral ((length chars) - 1)) + 0.01))
+        printToLine 1 = putStrLn $ map toCharacter $ intensitiesReduced 1 (width sh) 
+        printToLine n = do
+            printToLine (n-1)
+            putStrLn $ map toCharacter $ intensitiesReduced n (width sh)
+    printToLine $ (height sh) `div` 2
+    
+
+main = do
+    let screen = renderScreen $ Shape {width=64, height=64}
+    writePPM $ screen
+    showTerminal screen
