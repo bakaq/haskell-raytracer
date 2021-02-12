@@ -1,3 +1,4 @@
+import System.Environment
 import System.IO
 
 -- Vector stuff
@@ -133,6 +134,10 @@ showTerminal Image {shape=sh, raw=rawData} = do
     
 
 main = do
-    let screen = renderScreen $ Shape {width=64, height=64}
+    args <- getArgs
+    let dim = if length args > 0
+        then read $ args !! 0
+        else 32
+    let screen = renderScreen $ Shape {width=dim, height=dim}
     writePPM $ screen
     showTerminal screen
